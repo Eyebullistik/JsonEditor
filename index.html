@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Editor for Apps</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            flex-direction: row;
+            background-color: white;
+            border-radius: 20px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            width: 80%;
+            height: 80%;
+        }
+        .app-list {
+            background-color: #0078D7;
+            color: white;
+            padding: 20px;
+            width: 30%;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .app-list h2, .editor h1, .editor h2 {
+            text-align: center;
+        }
+        .app-list ul {
+            list-style-type: none;
+            padding: 0;
+            flex-grow: 1;
+        }
+        .app-list li {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #ccc;
+            transition: background-color 0.3s;
+        }
+        .app-list li:hover {
+            background-color: #005A9E;
+        }
+        .app-list button, button {
+            padding: 10px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            background-color: #004C87;
+            color: white;
+            transition: background-color 0.3s, transform 0.3s;
+            margin-top: 20px;
+            width: 100%;
+        }
+        button:hover {
+            background-color: #003366;
+            transform: translateY(-2px);
+        }
+        .editor {
+            padding: 20px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .form-group textarea {
+            resize: vertical;
+        }
+        .buttons {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        #appFormContainer {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="app-list">
+        <h2>App List</h2>
+        <ul id="appList"></ul>
+        <button id="addAppButton">+ Add App</button>
+        <button id="combineJsonButton">Combine JSON</button>
+    </div>
+    <div class="editor">
+        <h1>App JSON Editor</h1>
+        <div id="appFormContainer">
+            <h2>Add/Edit App</h2>
+            <div class="form-group">
+                <label for="appName">App Name</label>
+                <input type="text" id="appName" required>
+            </div>
+            <div class="form-group">
+                <label for="appDescription">Description</label>
+                <textarea id="appDescription" required></textarea>
+            </div>
+            <div class="form-group">
+                <label for="appIcon">App Icon URL</label>
+                <input type="text" id="appIcon" required>
+            </div>
+            <div class="form-group">
+                <label for="appDownloadLink">Download Link</label>
+                <input type="text" id="appDownloadLink" required>
+            </div>
+            <div class="form-group">
+                <label for="appScreenshots">Screenshots (comma separated URLs)</label>
+                <textarea id="appScreenshots"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="appTabs">Tabs (comma separated)</label>
+                <input type="text" id="appTabs" required>
+            </div>
+            <div class="form-group">
+                <label for="appAdmin">Admin</label>
+                <select id="appAdmin">
+                    <option value="false">False</option>
+                    <option value="true">True</option>
+                </select>
+            </div>
+            <div class="buttons">
+                <button id="saveAppButton">Save App</button>
+                <button id="deleteAppButton">Delete App</button>
+            </div>
+        </div>
+        <div class="buttons">
+            <button id="saveJsonButton">Save All JSON</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let appsData = [];
+    let selectedAppIndex = null;
+
+    // Load existing apps from JSON
+    fetch('https://raw.githubusercontent.com/Eyebullistik/WinStoreV3/main/WinSourceV3.json')
+        .then(response => response.json())
+        .then(data => {
+            appsData = data;
+            renderAppList();
+        })
+        .catch(error => {
+            console.error('Error fetching app data:', error);
+        });
+
+    document.getElementById('addAppButton').addEventListener('click', () => {
+        document.getElementById('appFormContainer').style.display = 'block';
+        clearForm();
+        selectedAppIndex = null;
+    });
+
+    document.getElementById('saveAppButton').addEventListener('click', () => {
+        const app = {
+            name: document.getElementById('appName').value,
+            description: document.getElementById('appDescription').value,
+            app_icon: document.getElementById('appIcon').value,
+            download_link: document.getElementById('appDownloadLink').value,
+            screenshots: document.getElementById('appScreenshots').value.split(',').map(url => url.trim()),
+            tabs: document.getElementById('appTabs').value.split(',').map(tab => tab.trim()),
+            admin: document.getElementById('appAdmin').value === 'true'
+        };
+
+        if (selectedAppIndex !== null) {
+            appsData[selectedAppIndex] = app;
+        } else {
+            appsData.push(app);
+        }
+
+        const appJson = JSON.stringify(app, null, 4);
+        const blob = new Blob([appJson], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${app.name}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        clearForm();
+        document.getElementById('appFormContainer').style.display = 'none';
+        renderAppList();
+    });
+
+    document.getElementById('deleteAppButton').addEventListener('click', () => {
+        if (selectedAppIndex !== null) {
+            appsData.splice(selectedAppIndex, 1);
+            selectedAppIndex = null;
+            clearForm();
+            document.getElementById('appFormContainer').style.display = 'none';
+            renderAppList();
+        }
+    });
+
+    document.getElementById('saveJsonButton').addEventListener('click', () => {
+        const json = JSON.stringify(appsData, null, 4);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'apps.json';
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('combineJsonButton').addEventListener('click', () => {
+        const jsonInput1 = prompt('Paste the first JSON:');
+        const jsonInput2 = prompt('Paste the second JSON:');
+
+        if (!jsonInput1 || !jsonInput2) {
+            alert('Both JSON inputs are required.');
+            return;
+        }
+
+        let json1, json2;
+
+        try {
+            json1 = JSON.parse(jsonInput1);
+            json2 = JSON.parse(jsonInput2);
+        } catch (error) {
+            alert('Invalid JSON format.');
+            return;
+        }
+
+        const combinedApps = [...json1, ...json2].reduce((acc, app) => {
+            if (!acc.some(existingApp => existingApp.name === app.name)) {
+                acc.push(app);
+            }
+            return acc;
+        }, []);
+
+        const combinedJson = JSON.stringify(combinedApps, null, 4);
+        const blob = new Blob([combinedJson], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'combined_apps.json';
+        a.click();
+        URL.revokeObjectURL(url);
+
+        appsData = combinedApps;
+        renderAppList();
+    });
+
+    function renderAppList() {
+        const appList = document.getElementById('appList');
+        appList.innerHTML = '';
+
+        appsData.forEach((app, index) => {
+            const li = document.createElement('li');
+            li.textContent = app.name + (app.admin ? ' 🛡️' : '');
+            li.addEventListener('click', () => {
+                document.getElementById('appFormContainer').style.display = 'block';
+                loadAppIntoForm(app, index);
+            });
+            appList.appendChild(li);
+        });
+    }
+
+    function loadAppIntoForm(app, index) {
+        selectedAppIndex = index;
+        document.getElementById('appName').value = app.name;
+        document.getElementById('appDescription').value = app.description;
+        document.getElementById('appIcon').value = app.app_icon;
+        document.getElementById('appDownloadLink').value = app.download_link;
+        document.getElementById('appScreenshots').value = app.screenshots.join(', ');
+        document.getElementById('appTabs').value = app.tabs.join(', ');
+        document.getElementById('appAdmin').value = app.admin.toString();
+    }
+
+    function clearForm() {
+        document.getElementById('appName').value = '';
+        document.getElementById('appDescription').value = '';
+        document.getElementById('appIcon').value = '';
+        document.getElementById('appDownloadLink').value = '';
+        document.getElementById('appScreenshots').value = '';
+        document.getElementById('appTabs').value = '';
+        document.getElementById('appAdmin').value = 'false';
+    }
+
+    renderAppList();
+</script>
+
+</body>
+</html>
